@@ -3,6 +3,7 @@
 if (is_admin()) {
     new BfwRequery();
     add_action('wp_ajax_bfw_requery_single', 'bfw_requery_single');
+    add_action('wp_ajax_bfw_requery_all', 'bfw_requery_all');
 }
 
 function bfw_requery_single()
@@ -44,6 +45,45 @@ function bfw_requery_single()
         echo 'Unknown error.';
     }
 
+    wp_die();
+}
+
+function bfw_requery_all()
+{
+    global $wpdb;
+
+    set_time_limit(3000);
+    ignore_user_abort(true);
+
+    $sql = "select postmeta.post_id from $wpdb->postmeta postmeta, $wpdb->posts posts where postmeta.meta_value = 'false' AND postmeta.meta_key = 'billplz_paid'  AND posts.post_status<>'trash' AND posts.id=postmeta.post_id";
+    $results = $wpdb->get_results($sql, ARRAY_A);
+    $output = array();
+
+    foreach ($results as $result) {
+        $order_id = $result['post_id'];
+        $bill_id = get_post_meta($order_id, '_transaction_id', true);
+        $bill_api_key = get_post_meta($order_id, 'billplz_api_key', true);
+        $bill_paid = get_post_meta($order_id, 'billplz_paid', true);
+
+        if (empty($bill_id) || empty($bill_api_key) || empty($bill_paid)) {
+            continue;
+        }
+
+        $connect = new BillplzWooCommerceWPConnect($bill_api_key);
+        $connect->detectMode();
+        $billplz = new BillplzWooCommerceAPI($connect);
+        list($rheader, $rbody) = $billplz->toArray($billplz->getBill($bill_id));
+        if ($rbody['paid']) {
+            update_post_meta($order_id, 'billplz_paid', 'true');
+            $order = new WC_Order($order_id);
+            $order->add_order_note('Payment Status: SUCCESSFUL' . '<br>Bill ID: ' . $rbody['id']);
+            $order->payment_complete($bill_id);
+            $output[]= 'Successfully updated status for Order ID #'.$order_id;
+        } else {
+            $output[]= 'Status for Order ID #'.$order_id.' not updated due to unpaid status';
+        }
+    }
+    echo implode("<br>", $output);
     wp_die();
 }
 
