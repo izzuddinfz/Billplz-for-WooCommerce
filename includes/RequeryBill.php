@@ -133,7 +133,8 @@ class BfwRequery
 // This prints out all hidden setting fields
         settings_fields('bfw_option_group');
         do_settings_sections('bfw-requery-tool');
-        submit_button('Requery Status', 'primary', 'requery-single', false);?>
+        submit_button('Requery Status', 'primary', 'requery-single', false);
+        submit_button('Requery ALL', 'delete', 'requery-all', true); ?>
         </form>
         </div>
         <?php
